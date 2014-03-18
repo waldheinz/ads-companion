@@ -1,7 +1,7 @@
 /* This code is part of Freenet. It is distributed under the GNU General
  * Public License, version 2 (or at your option any later version). See
  * http://www.gnu.org/ for further details of the GPL. */
-package plugins.KeyUtils;
+package plugins.ads;
 
 /**
  * @author saces
@@ -18,7 +18,7 @@ public class Version {
 	 * version. */
 	public static final long version = 5020;
 
-	public static final String longVersionString = "0.5.3 " + gitRevision;
+	public static final String longVersionString = "0.1" + gitRevision;
 
 	/**
 	 * just prints the version number to standard out. intended to be used
