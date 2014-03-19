@@ -77,6 +77,8 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
         msgb.append(' ');
         msgb.append(blk.getKey().getType() & 0xff);
         msgb.append(' ');
+        msgb.append(Base64.encode(blk.getHeaders()));
+        msgb.append(' ');
         msgb.append(Base64.encode(blk.getData()));
         msgb.append('\n');
         
@@ -249,7 +251,7 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
             final String[] parts = req.split(" ");
             
             if ("getchk".equals(parts[0])) {
-                final byte[] key = Base64.decode(parts[1]);
+                final byte[] key = Base64.decodeStandard(parts[1]);
                 final byte ca = Byte.parseByte(parts[2]);
                 final NodeCHK chk = new NodeCHK(key, ca);
                 schedGet(chk);
