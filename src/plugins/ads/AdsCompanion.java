@@ -137,15 +137,6 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
         
         pluginContext = new PluginContext(pr);
         
-        try {
-            schedGet(new NodeCHK(
-                    Base64.decode("f9KRS95Gf84qqmeyIGg2Y1Tqy84TjR7Fz9JrX~lEtyM")
-                    , Key.ALGO_AES_CTR_256_SHA256));
-            
-        } catch (Exception ex) {
-            Logger.error(this, "sdfsdf", ex);
-        }
-        
         fcpHandler = new FCPHandler(pluginContext);
         
         try {
@@ -251,7 +242,7 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
             final String[] parts = req.split(" ");
             
             if ("getchk".equals(parts[0])) {
-                final byte[] key = Base64.decodeStandard(parts[1]);
+                final byte[] key = Base64.decode(parts[1]);
                 final byte ca = Byte.parseByte(parts[2]);
                 final NodeCHK chk = new NodeCHK(key, ca);
                 schedGet(chk);
