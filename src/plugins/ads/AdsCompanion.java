@@ -2,7 +2,10 @@ package plugins.ads;
 
 import freenet.keys.CHKBlock;
 import freenet.keys.Key;
+import freenet.keys.KeyBlock;
 import freenet.keys.NodeCHK;
+import freenet.keys.NodeSSK;
+import freenet.keys.SSKBlock;
 import freenet.l10n.PluginL10n;
 import freenet.node.LowLevelGetException;
 import freenet.node.Node;
@@ -67,20 +70,41 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
         }
     }
     
-    private void fetchFromStores(NodeCHK key) throws IOException {
+    private boolean fetchFromStores(Key key) throws IOException {
         final Node n = pluginContext.clientCore.node;
-        final CHKBlock blk = n.fetch(key, true, true, true, true, true, null);
+        final KeyBlock blk = n.fetch(key, true, true, true, false, null);
+        
+        if (blk == null) {
+            return false;
+        }
         
         final StringBuilder msgb = new StringBuilder();
-        msgb.append("chk ");
-        msgb.append(Base64.encode(blk.getRoutingKey()));
-        msgb.append(' ');
-        msgb.append(blk.getKey().getType() & 0xff);
-        msgb.append(' ');
-        msgb.append(Base64.encode(blk.getHeaders()));
-        msgb.append(' ');
-        msgb.append(Base64.encode(blk.getData()));
-        msgb.append('\n');
+        
+        if (blk instanceof CHKBlock) {
+            final CHKBlock chkBlock = (CHKBlock) blk;
+            
+            msgb.append("chk ");
+            msgb.append(Base64.encode(chkBlock.getRoutingKey()));
+            msgb.append(' ');
+            msgb.append(chkBlock.getKey().getType() & 0xff);
+            msgb.append(' ');
+            msgb.append(Base64.encode(chkBlock.getHeaders()));
+            msgb.append(' ');
+            msgb.append(Base64.encode(chkBlock.getData()));
+            msgb.append('\n');
+        } else if (blk instanceof SSKBlock) {
+            final SSKBlock sskBlock = (SSKBlock) blk;
+            
+            msgb.append("ssk ");
+            msgb.append(Base64.encode(sskBlock.getRoutingKey()));
+            msgb.append(' ');
+            msgb.append(sskBlock.getKey().getType() & 0xff);
+            msgb.append(' ');
+            msgb.append(Base64.encode(sskBlock.getRawHeaders()));
+            msgb.append(' ');
+            msgb.append(Base64.encode(sskBlock.getRawData()));
+            msgb.append('\n');
+        }
         
         final String msg = msgb.toString();
         
@@ -103,30 +127,34 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
                 i.remove();
             }
         }
+        
+        return true;
     }
     
-    private void schedGet(final NodeCHK k) {
-        final NodeClientCore cc = pluginContext.clientCore;
-        RequestCompletionListener l = new RequestCompletionListener() {
-            
-            @Override
-            public void onSucceeded() {
-                System.out.println("SUCCESS");
-                
-                try {
-                    fetchFromStores(k);
-                } catch (IOException ex) {
-                    java.util.logging.Logger.getLogger(AdsCompanion.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
+    private void schedGet(final Key k) throws IOException {
+        if (!fetchFromStores(k)) {
+            final NodeClientCore cc = pluginContext.clientCore;
+            RequestCompletionListener l = new RequestCompletionListener() {
 
-            @Override
-            public void onFailed(LowLevelGetException e) {
-                System.out.println("OH NOES: " + e);
-            }
-        };
-        
-        cc.asyncGet(k, false, l, true, true, true, false, false);
+                @Override
+                public void onSucceeded() {
+                    System.out.println("SUCCESS");
+
+                    try {
+                        fetchFromStores(k);
+                    } catch (IOException ex) {
+                        java.util.logging.Logger.getLogger(AdsCompanion.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+
+                @Override
+                public void onFailed(LowLevelGetException e) {
+                    System.out.println("OH NOES: " + e);
+                }
+            };
+
+            cc.asyncGet(k, false, l, true, true, true, false, false);
+        }
     }
     
     @Override
@@ -246,6 +274,12 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
                 final byte ca = Byte.parseByte(parts[2]);
                 final NodeCHK chk = new NodeCHK(key, ca);
                 schedGet(chk);
+            } if("getssk".equals(parts[0])) {
+                final byte[] hpk = Base64.decode(parts[1]);
+                final byte[] ehd = Base64.decode(parts[2]);
+                final byte ca = Byte.parseByte(parts[3]);
+                final NodeSSK nodeSSK = new NodeSSK(hpk, ehd, ca);
+                schedGet(nodeSSK);
             } else {
                 System.out.println("what's " + parts[0]);
             }
