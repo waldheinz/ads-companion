@@ -1,5 +1,6 @@
 package plugins.ads;
 
+import freenet.crypt.DSAPublicKey;
 import freenet.keys.CHKBlock;
 import freenet.keys.Key;
 import freenet.keys.KeyBlock;
@@ -10,6 +11,7 @@ import freenet.l10n.PluginL10n;
 import freenet.node.LowLevelGetException;
 import freenet.node.Node;
 import freenet.node.NodeClientCore;
+import freenet.node.NodeGetPubkey;
 import freenet.node.RequestCompletionListener;
 import freenet.pluginmanager.FredPlugin;
 import freenet.pluginmanager.FredPluginFCP;
@@ -30,6 +32,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.lang.reflect.Field;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -54,12 +57,11 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     private ServerSocket ss;
     private final List<Socket> clients;
     private volatile boolean terminate;
-
+    private NodeGetPubkey getPubKey;
+    
     public AdsCompanion() {
         this.clients = new ArrayList<Socket>();
     }
-    
-    
     
     @Override
     public void handle(PluginReplySender replysender, SimpleFieldSet params, Bucket data, int accesstype) {
@@ -94,11 +96,12 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
             msgb.append('\n');
         } else if (blk instanceof SSKBlock) {
             final SSKBlock sskBlock = (SSKBlock) blk;
+            final DSAPublicKey pk = sskBlock.getPubKey();
             
             msgb.append("ssk ");
             msgb.append(Base64.encode(sskBlock.getRoutingKey()));
             msgb.append(' ');
-            msgb.append(sskBlock.getKey().getType() & 0xff);
+            msgb.append(Base64.encode(pk.asPaddedBytes()));
             msgb.append(' ');
             msgb.append(Base64.encode(sskBlock.getRawHeaders()));
             msgb.append(' ');
@@ -108,6 +111,12 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
         
         final String msg = msgb.toString();
         
+        sendToClients(msg);
+        
+        return true;
+    }
+    
+    private void sendToClients(final String msg) throws IOException {
         for (Socket skt : this.clients) {
             try {
                 final OutputStreamWriter osw = new OutputStreamWriter(skt.getOutputStream());
@@ -127,8 +136,6 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
                 i.remove();
             }
         }
-        
-        return true;
     }
     
     private void schedGet(final Key k) throws IOException {
@@ -159,27 +166,32 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     
     @Override
     public void runPlugin(PluginRespirator pr) {
-
-        Logger.minor(this, "Initialising Key Utils.");
         this.terminate = false;
         
         pluginContext = new PluginContext(pr);
-        
         fcpHandler = new FCPHandler(pluginContext);
+        
+        final Node node = pluginContext.node;
+        final Class<? extends Node> nclass = node.getClass();
+        
+        try {
+            final Field gpkField = nclass.getDeclaredField("getPubKey");
+            gpkField.setAccessible(true);
+            final Object gpk = gpkField.get(node);
+            this.getPubKey = (NodeGetPubkey) gpk;
+        } catch (Exception ex) {
+            System.out.println("failed to access getpubkey: " + ex);
+        }
         
         try {
             this.ss = this.listen();
         } catch (IOException ex) {
             java.util.logging.Logger.getLogger(AdsCompanion.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
-        Logger.minor(this, "Initialising Key Utils done.");
     }
 
     @Override
     public void terminate() {
-        // TODO kill all 'session handles'
-        // TODO kill all requests
         fcpHandler.kill();
         fcpHandler = null;
         this.terminate = true;
@@ -274,7 +286,7 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
                 final byte ca = Byte.parseByte(parts[2]);
                 final NodeCHK chk = new NodeCHK(key, ca);
                 schedGet(chk);
-            } if("getssk".equals(parts[0])) {
+            } else if("getssk".equals(parts[0])) {
                 final byte[] hpk = Base64.decode(parts[1]);
                 final byte[] ehd = Base64.decode(parts[2]);
                 final byte ca = Byte.parseByte(parts[3]);
