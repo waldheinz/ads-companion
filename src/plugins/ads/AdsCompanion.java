@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -228,7 +229,8 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     }
     
     private ServerSocket listen() throws IOException {
-        final ServerSocket sskt = new ServerSocket(4687);
+        final ServerSocket sskt = new ServerSocket(
+                4687, 0, InetAddress.getLoopbackAddress());
         
         new Thread(new Acceptor()).start();
         
