@@ -119,12 +119,14 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     
     private void sendToClients(final String msg) throws IOException {
         for (Socket skt : this.clients) {
-            try {
-                final OutputStreamWriter osw = new OutputStreamWriter(skt.getOutputStream());
-                osw.write(msg);
-                osw.flush();
-            } catch (IOException e) {
-                skt.close();
+            synchronized (skt) {
+                try {
+                    final OutputStreamWriter osw = new OutputStreamWriter(skt.getOutputStream());
+                    osw.write(msg);
+                    osw.flush();
+                } catch (IOException e) {
+                    skt.close();
+                }
             }
         }
         
@@ -230,7 +232,7 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     
     private ServerSocket listen() throws IOException {
         final ServerSocket sskt = new ServerSocket(
-                4687, 0, InetAddress.getLoopbackAddress());
+                4687, 0, InetAddress.getByName("127.0.0.1"));
         
         new Thread(new Acceptor()).start();
         
