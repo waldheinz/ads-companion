@@ -89,7 +89,9 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
             msgb.append("chk ");
             msgb.append(Base64.encode(chkBlock.getRoutingKey()));
             msgb.append(' ');
-            msgb.append(chkBlock.getKey().getType() & 0xff);
+            msgb.append(Base64.encode(
+                    new byte[] {
+                        (byte)(chkBlock.getKey().getType() & 0xff)}));
             msgb.append(' ');
             msgb.append(Base64.encode(chkBlock.getHeaders()));
             msgb.append(' ');
@@ -231,8 +233,13 @@ public class AdsCompanion implements FredPlugin, FredPluginFCP, FredPluginThread
     }
     
     private ServerSocket listen() throws IOException {
+        
+        final int port = this.pluginContext.node.getOpennetFNPPort() + 1;
+        
         final ServerSocket sskt = new ServerSocket(
-                4687, 0, InetAddress.getByName("127.0.0.1"));
+                port, 0, InetAddress.getByName("127.0.0.1"));
+        
+        System.out.println("ADS COMPANION listening on port " + port);
         
         new Thread(new Acceptor()).start();
         
